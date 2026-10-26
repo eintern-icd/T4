@@ -1,0 +1,12 @@
+{
+  "userId": "u_4886111579d6765a",
+  "projectId": "T4",
+  "name": "T4",
+  "board": {
+    "fqbn": "esp32:esp32:esp32"
+  },
+  "selections": null,
+  "serial": null,
+  "createdAt": "2026-10-26T04:04:37.902Z",
+  "updatedAt": "2026-10-26T04:04:37.902Z"
+}
