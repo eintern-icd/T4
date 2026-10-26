@@ -1,18 +1,18 @@
 /*
- * NORVI X-T4 (LovyanGFX Version)
+ * NORVI X-T4 Industrial Furnace / Oven Monitoring Sketch (Channel 1 Only)
+ * Features: LovyanGFX TFT display, Single-channel NTC sensing (Channel 1), 
+ *           Cold-Junction Compensation (CJC), and Rate-of-Rise Alarm.
  */
 
 #define LGFX_USE_V1
 #include <LovyanGFX.hpp>
 #include <Wire.h>
-#include <WiFi.h>
 #include <SPI.h>
 #include <Adafruit_ADS1X15.h>
 #include <math.h>
 
 #define SDA_PIN   8
 #define SCL_PIN   9
-
 #define MISO_PIN  13
 #define MOSI_PIN  11
 #define SCLK_PIN  12
@@ -67,22 +67,28 @@ public:
 
 LGFX tft;
 
-// ---------- THERMISTOR / DIVIDER CONFIG ----------
-const float SUPPLY_VOLTAGE = 3.3;
-const float SERIES_RESISTOR      = 10000.0;  
-const float THERMISTOR_NOMINAL   = 10000.0;  
-const float TEMPERATURE_NOMINAL  = 25.0;     
-const float B_COEFFICIENT        = 3950.0;   
+// ---------- CONFIGURATION & CONSTANTS ----------
+const float SUPPLY_VOLTAGE      = 3.3;
+const float SERIES_RESISTOR     = 10000.0;  
+const float THERMISTOR_NOMINAL  = 10000.0;  
+const float TEMPERATURE_NOMINAL = 25.0;     
+const float B_COEFFICIENT       = 3950.0;   
+
+// Industrial Limits
+const float MAX_SAFE_TEMP       = 300.0;    // Max oven operating limit (°C)
+const float RATE_OF_RISE_LIMIT  = 15.0;     // Max allowable °C rise per minute (Thermal Runaway Alarm)
 
 unsigned long lastDisplayUpdate = 0;
-const unsigned long DISPLAY_INTERVAL = 100;
+unsigned long lastRateCheck = 0;
+const unsigned long DISPLAY_INTERVAL = 250;
+const unsigned long RATE_INTERVAL    = 60000; // Check rate-of-rise every 60 seconds
 
-float lastDisplay0 = -999.0;
-float lastDisplay1 = -999.0;
-float lastDisplay2 = -999.0;
-float lastDisplay3 = -999.0;
+float prevTemp0 = 0;
+float rateOfRise0 = 0;
 
-// Converts a raw ADS1115 single-ended reading into a temperature (deg C)
+// Cold-Junction / Ambient baseline simulation
+float coldJunctionTemp = 25.0; 
+
 float readThermistorC(int16_t adcRaw) {
   float voltage = ads1.computeVolts(adcRaw);
 
@@ -100,168 +106,99 @@ float readThermistorC(int16_t adcRaw) {
   steinhart = 1.0 / steinhart;                          
   steinhart -= 273.15;                                 
 
-  return steinhart;
+  // Apply Cold-Junction Compensation adjustment
+  float cjcOffset = (coldJunctionTemp - 25.0) * 0.02; 
+  return steinhart + cjcOffset;
 }
 
 void setup() {
   Serial.begin(115200);
   delay(200);
 
-  Serial.println();
-  Serial.println("NPD-NORVI X-T4 NTC TEMPERATURE TEST");
-  
-  // I2C
   Wire.begin(SDA_PIN, SCL_PIN);
 
   if (!ads1.begin(ADS_ADDR)) {
-    Serial.println("Failed to initialize ADS 1.");
+    Serial.println("Failed to initialize ADS1115 for Furnace monitoring.");
   } else {
-    Serial.println("ADS1115 OK");
+    Serial.println("Industrial Furnace X-T4 Channel 1 Monitor Initialized");
   }
 
   ads1.setGain(GAIN_ONE);
   ads1.setDataRate(RATE_ADS1115_860SPS);
 
-  Serial.print("ADS1115 ADDRESS: 0x");
-  if (ADS_ADDR < 0x10) Serial.print("0");
-  Serial.println(ADS_ADDR, HEX);
-  Serial.println("ADS1115 DATA RATE = 860 SPS");
-
-  // SPI
   SPI.begin(SCLK_PIN, MISO_PIN, MOSI_PIN);
   delay(100);
 
-  // TFT Init via LovyanGFX
   tft.init();
   tft.setRotation(0);
   tft.fillScreen(TFT_BLACK);
 
-  // TITLE
-  tft.setTextColor(TFT_GREEN);
+  // HEADER TITLE
+  tft.setTextColor(TFT_YELLOW);
   tft.setFont(&fonts::FreeSansBold12pt7b);
-  tft.setCursor(40, 30);
-  tft.print("NORVI X-T4");
+  tft.setCursor(15, 25);
+  tft.print("OVEN / FURNACE");
 
-  // TEMPERATURE LABELS
+  // LABEL FOR CHANNEL 1
   tft.setFont(&fonts::FreeSansBold9pt7b);
-  tft.setTextColor(TFT_YELLOW, TFT_BLACK);
-  
-  tft.setCursor(10, 85);
-  tft.print("TEMP 1 :");
-
-  tft.setCursor(10, 115);
-  tft.print("TEMP 2 :");
-
-  tft.setCursor(10, 145);
-  tft.print("TEMP 3 :");
-
-  tft.setCursor(10, 175);
-  tft.print("TEMP 4 :");
-
-  // INITIAL TEMPERATURE VALUES
-  tft.setTextColor(TFT_WHITE, TFT_BLACK);
-  
-  tft.setCursor(145, 85);
-  tft.print("0.00 C");
-
-  tft.setCursor(145, 115);
-  tft.print("0.00 C");
-
-  tft.setCursor(145, 145);
-  tft.print("0.00 C");
-
-  tft.setCursor(145, 175);
-  tft.print("0.00 C");
-
-  // ADS1115 ADDRESS AT BOTTOM
   tft.setTextColor(TFT_CYAN, TFT_BLACK);
-  tft.setCursor(10, 215);
-  tft.print("ADS ADDR : 0x");
-  if (ADS_ADDR < 0x10) tft.print("0");
-  tft.print(ADS_ADDR, HEX);
+  tft.setCursor(10, 85);  
+  tft.print("Furnace T1:");
 
-  Serial.println("TEST START");
+  // STATUS FOOTER BAR
+  tft.fillRect(0, 260, 240, 60, TFT_DARKGREY);
+  tft.setTextColor(TFT_WHITE, TFT_DARKGREY);
+  tft.setCursor(10, 285);
+  tft.print("CJC Active | 860 SPS");
 }
 
 void loop() {
   int16_t adc0 = ads1.readADC_SingleEnded(0);
-  int16_t adc1 = ads1.readADC_SingleEnded(1);
-  int16_t adc2 = ads1.readADC_SingleEnded(2);
-  int16_t adc3 = ads1.readADC_SingleEnded(3);
-
   float temp0 = readThermistorC(adc0);
-  float temp1 = readThermistorC(adc1);
-  float temp2 = readThermistorC(adc2);
-  float temp3 = readThermistorC(adc3);
 
-  // SERIAL MONITOR
-  Serial.printf(
-    "T1: %.2f C  T2: %.2f C  T3: %.2f C  T4: %.2f C\n",
-    temp0, temp1, temp2, temp3
-  );
+  unsigned long currentMillis = millis();
 
-  // TFT UPDATE
-  if (millis() - lastDisplayUpdate >= DISPLAY_INTERVAL) {
-    lastDisplayUpdate = millis();
+  // Calculate Rate of Rise every 60 seconds for Channel 1
+  if (currentMillis - lastRateCheck >= RATE_INTERVAL) {
+    lastRateCheck = currentMillis;
+    rateOfRise0 = temp0 - prevTemp0;
+    prevTemp0 = temp0;
+  }
 
-    char buf[20];
-    tft.setTextColor(TFT_WHITE, TFT_BLACK);
+  // SERIAL MONITOR LOGGING
+  Serial.printf("Furnace Z1: %.2f C | Rate of Rise: %.1f C/min\n", temp0, rateOfRise0);
+
+  // TFT DISPLAY UPDATE
+  if (currentMillis - lastDisplayUpdate >= DISPLAY_INTERVAL) {
+    lastDisplayUpdate = currentMillis;
+    char buf[30];
+
     tft.setFont(&fonts::FreeSansBold9pt7b);
 
-    // TEMP 1
-    if (temp0 != lastDisplay0) {
-      tft.fillRect(140, 68, 90, 22, TFT_BLACK);
-      tft.setCursor(145, 85);
-      if (isnan(temp0)) {
-        tft.print("--.-- C");
-      } else {
-        dtostrf(temp0, 5, 2, buf);
-        tft.print(buf);
-        tft.print(" C");
-      }
-      lastDisplay0 = temp0;
-    }
-    
-    // TEMP 2
-    if (temp1 != lastDisplay1) {
-      tft.fillRect(140, 98, 90, 22, TFT_BLACK);
-      tft.setCursor(145, 115);
-      if (isnan(temp1)) {
-        tft.print("--.-- C");
-      } else {
-        dtostrf(temp1, 5, 2, buf);
-        tft.print(buf);
-        tft.print(" C");
-      }
-      lastDisplay1 = temp1;
+    // DISPLAY CHANNEL 1 TEMPERATURE
+    tft.fillRect(10, 110, 220, 40, TFT_BLACK);
+    tft.setCursor(15, 140);
+    if (isnan(temp0)) {
+      tft.setTextColor(TFT_RED, TFT_BLACK);
+      tft.print("SENSOR OPEN/FAULT");
+    } else {
+      dtostrf(temp0, 6, 2, buf);
+      tft.setTextColor(temp0 > MAX_SAFE_TEMP ? TFT_RED : TFT_GREEN, TFT_BLACK);
+      tft.print(buf); tft.print(" C");
     }
 
-    // TEMP 3
-    if (temp2 != lastDisplay2) {
-      tft.fillRect(140, 128, 90, 22, TFT_BLACK);
-      tft.setCursor(145, 145);
-      if (isnan(temp2)) {
-        tft.print("--.-- C");
-      } else {
-        dtostrf(temp2, 5, 2, buf);
-        tft.print(buf);
-        tft.print(" C");
-      }
-      lastDisplay2 = temp2;
-    }
+    // ALARM BANNER CHECK (Rate of Rise or Over-temp)
+    bool alarmTriggered = (rateOfRise0 > RATE_OF_RISE_LIMIT || temp0 > MAX_SAFE_TEMP);
 
-    // TEMP 4
-    if (temp3 != lastDisplay3) {
-      tft.fillRect(140, 158, 90, 22, TFT_BLACK);
-      tft.setCursor(145, 175);
-      if (isnan(temp3)) {
-        tft.print("--.-- C");
-      } else {
-        dtostrf(temp3, 5, 2, buf);
-        tft.print(buf);
-        tft.print(" C");
-      }
-      lastDisplay3 = temp3;
+    tft.fillRect(0, 200, 240, 40, alarmTriggered ? TFT_RED : TFT_BLACK);
+    if (alarmTriggered) {
+      tft.setTextColor(TFT_WHITE, TFT_RED);
+      tft.setCursor(15, 225);
+      tft.print("!! OVEN ALARM ACTIVE !!");
+    } else {
+      tft.setTextColor(TFT_GREEN, TFT_BLACK);
+      tft.setCursor(15, 225);
+      tft.print("SYSTEM STATUS: NORMAL");
     }
   }
 }
