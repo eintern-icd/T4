@@ -75,7 +75,7 @@ const float TEMPERATURE_NOMINAL = 25.0;
 const float B_COEFFICIENT       = 3950.0;   
 
 // Industrial Limits
-const float MAX_SAFE_TEMP       = 32.0;    // Max oven operating limit (°C)
+const float MAX_SAFE_TEMP       = 300.0;    // Max oven operating limit (°C)
 const float RATE_OF_RISE_LIMIT  = 15.0;     // Max allowable °C rise per minute (Thermal Runaway Alarm)
 
 unsigned long lastDisplayUpdate = 0;
