@@ -2,8 +2,32 @@
   "version": 2,
   "enforcementLevel": "strict",
   "libraries": {
-    "manager": [],
-    "managerResolved": [],
+    "manager": [
+      {
+        "name": "LovyanGFX",
+        "version": "1.2.34",
+        "scope": "shared"
+      },
+      {
+        "name": "Adafruit ADS1X15",
+        "version": "2.6.2",
+        "scope": "shared"
+      }
+    ],
+    "managerResolved": [
+      {
+        "name": "Adafruit ADS1X15",
+        "version": "2.6.2"
+      },
+      {
+        "name": "Adafruit BusIO",
+        "version": "1.17.4"
+      },
+      {
+        "name": "LovyanGFX",
+        "version": "1.2.34"
+      }
+    ],
     "git": []
   }
 }
