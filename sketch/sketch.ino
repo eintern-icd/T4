@@ -1,5 +1,5 @@
 /*
- * NORVI X-T4 Industrial Furnace Monitor - Channel 1 (Professional UI)
+ * NORVI X-T4 Industrial Furnace Monitor - Channel 1 (Clean Aligned UI)
  */
 
 #define LGFX_USE_V1
@@ -117,31 +117,22 @@ void setup() {
   tft.setRotation(0);
   tft.fillScreen(TFT_BLACK);
 
-  // --- HEADER FRAME ---
-  tft.fillRect(0, 0, 240, 40, 0x1883); // Dark Blue Header Background
+  // --- HEADER FRAME (Cleaned up X origin) ---
+  tft.fillRect(0, 0, 240, 45, 0x1883); 
   tft.setTextColor(TFT_WHITE);
   tft.setFont(&fonts::FreeSansBold9pt7b);
-  tft.setCursor(42, 25);
+  tft.setCursor(42, 28);
   tft.print("FURNACE CONTROL");
 
   // --- STATIC LABELS ---
   tft.setTextColor(TFT_LIGHTGREY);
   tft.setFont(&fonts::FreeSans9pt7b);
-  tft.setCursor(15, 65);
+  tft.setCursor(15, 68);
   tft.print("CHANNEL 1 (OVEN)");
 
-  tft.setCursor(15, 175);
+  // Rate of Rise Label on its own dedicated top line
+  tft.setCursor(15, 165);
   tft.print("RATE OF RISE:");
-
-  // Divider Line
-  tft.drawFastHLine(10, 150, 220, TFT_DARKGREY);
-
-  // --- FOOTER STATUS BAR ---
-  tft.fillRect(0, 280, 240, 40, 0x2104); // Dark Grey Footer
-  tft.setTextColor(TFT_CYAN);
-  tft.setFont(&fonts::FreeSans9pt7b);
-  tft.setCursor(15, 305);
-  tft.print("CJC Active | 860 SPS");
 }
 
 void loop() {
@@ -162,9 +153,9 @@ void loop() {
     lastDisplayUpdate = currentMillis;
     char buf[30];
 
-    // --- TEMPERATURE DISPLAY BOX ---
-    tft.fillRect(12, 85, 216, 55, 0x10A2); // Charcoal Box for Temp
-    tft.setCursor(20, 123);
+    // --- TEMPERATURE DISPLAY BOX (Taller box: height 65 to prevent overlap) ---
+    tft.fillRect(12, 82, 216, 65, 0x10A2); 
+    tft.setCursor(25, 126);
     tft.setFont(&fonts::FreeSansBold12pt7b);
     
     if (isnan(temp0)) {
@@ -178,18 +169,19 @@ void loop() {
       tft.print(" C");
     }
 
-    // --- RATE OF RISE DISPLAY ---
-    tft.fillRect(135, 158, 95, 28, TFT_BLACK);
-    tft.setCursor(140, 178);
+    // --- RATE OF RISE VALUE (Placed neatly below the label) ---
+    tft.fillRect(12, 180, 216, 30, TFT_BLACK);
+    tft.setCursor(18, 203);
+    tft.setFont(&fonts::FreeSansBold9pt7b);
     dtostrf(rateOfRise0, 5, 1, buf);
     tft.setTextColor(rateOfRise0 > RATE_OF_RISE_LIMIT ? TFT_RED : TFT_WHITE);
-    tft.print(buf); tft.print(" C/m");
+    tft.print(buf); tft.print(" C/min");
 
     // --- STATUS / ALARM BANNER ---
     bool alarmTriggered = (rateOfRise0 > RATE_OF_RISE_LIMIT || temp0 > MAX_SAFE_TEMP);
 
-    tft.fillRect(10, 210, 220, 50, alarmTriggered ? TFT_RED : 0x0320); // Red for alarm, Deep Green for normal
-    tft.setCursor(22, 241);
+    tft.fillRect(12, 230, 216, 55, alarmTriggered ? TFT_RED : 0x0320); 
+    tft.setCursor(35, 264);
     tft.setFont(&fonts::FreeSansBold9pt7b);
     
     if (alarmTriggered) {
