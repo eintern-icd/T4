@@ -1,12 +1,35 @@
 {
-  "userId": "u_4886111579d6765a",
-  "projectId": "T4",
+  "schemaVersion": 2,
   "name": "T4",
-  "board": {
-    "fqbn": "esp32:esp32:esp32"
+  "target": {
+    "framework": "arduino",
+    "board": "esp32:esp32:esp32s3",
+    "options": {
+      "CDCOnBoot": "cdc",
+      "CPUFreq": "240",
+      "DebugLevel": "none",
+      "DFUOnBoot": "default",
+      "EraseFlash": "none",
+      "EventsCore": "1",
+      "FlashMode": "qio",
+      "FlashSize": "16M",
+      "JTAGAdapter": "default",
+      "LoopCore": "1",
+      "MSCOnBoot": "default",
+      "PartitionScheme": "min_spiffs",
+      "PSRAM": "enabled",
+      "UploadMode": "default",
+      "UploadSpeed": "115200",
+      "USBMode": "hwcdc",
+      "ZigbeeMode": "default"
+    }
   },
-  "selections": null,
-  "serial": null,
+  "serial": {
+    "baudRate": 115200
+  },
+  "build": {
+    "properties": []
+  },
   "createdAt": "2026-10-26T04:04:37.902Z",
-  "updatedAt": "2026-10-26T04:04:37.902Z"
+  "updatedAt": "2026-10-26T04:05:47.275Z"
 }
